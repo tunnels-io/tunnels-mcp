@@ -8,7 +8,7 @@ account. It can also open a tunnel.
 ## Install
 
 ```
-go install github.com/tunnels-io/tunnels-mcp/cmd/tunnels-mcp@latest
+go install github.com/tunnels-io/tunnels-mcp/cmd/tunnels-mcp@v0.0.1
 ```
 
 ## Token
