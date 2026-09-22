@@ -16,10 +16,23 @@ const (
 	ScopeRegistrarRead     = "registrar:read"
 	ScopeCloudRead         = "cloud:read"
 
+	// ScopeMCPConnect carries no authority. The consent screen adds it to
+	// every token it mints.
 	ScopeMCPConnect = "mcp:connect"
 
 	ScopeWildcard = "*"
 )
+
+// explicitOnly lists the scopes a wildcard token does not satisfy. tBilling,
+// tRegistrar and tServerless opened to CLI tokens after scopes existed, and
+// they refuse "*". See tBilling/internal/handlers/scope.go.
+var explicitOnly = map[string]bool{
+	ScopeBillingRead:   true,
+	ScopeRegistrarRead: true,
+	ScopeCloudRead:     true,
+}
+
+func ExplicitOnly(scope string) bool { return explicitOnly[scope] }
 
 type Self struct {
 	Prefix    string   `json:"prefix"`
@@ -39,7 +52,16 @@ func (g Grants) Has(scope string) bool {
 	if !g.Discovered {
 		return true
 	}
-	return g.Scopes[scope] || g.Scopes[ScopeWildcard]
+	if g.Scopes[scope] {
+		return true
+	}
+	return g.Scopes[ScopeWildcard] && !explicitOnly[scope]
+}
+
+// IsWildcard reports an all-access token that was not made on the consent
+// screen.
+func (g Grants) IsWildcard() bool {
+	return g.Discovered && g.Scopes[ScopeWildcard] && !g.Scopes[ScopeMCPConnect]
 }
 
 func DiscoverSelf(ctx context.Context, c *Client) (Grants, error) {

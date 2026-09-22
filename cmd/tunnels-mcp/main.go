@@ -94,6 +94,10 @@ func run() error {
 		fmt.Fprintf(os.Stderr, "%s: %d tools withheld, the token lacks the scope: %v\n",
 			serverName, len(withheld), withheld)
 	}
+	if grants.IsWildcard() {
+		fmt.Fprintln(os.Stderr, serverName+": this is an older all-access token. Billing, domains and cloud apps "+
+			"refuse it. For those, create a token at tunnels.io/account/tokens under \"Connect an AI assistant\".")
+	}
 
 	return srv.Serve(ctx, os.Stdin, os.Stdout)
 }

@@ -201,11 +201,71 @@ func TestDiscoveryReadsScopes(t *testing.T) {
 	}
 }
 
-func TestWildcardSatisfiesEverything(t *testing.T) {
+func TestWildcardSatisfiesTheOlderServices(t *testing.T) {
 	g := Grants{Discovered: true, Scopes: map[string]bool{ScopeWildcard: true}}
-	for _, s := range []string{ScopeUsageRead, ScopeBillingRead, ScopeCloudRead} {
+	for _, s := range []string{ScopeAccountRead, ScopeTunnelsRead, ScopeUsageRead, ScopeTokensRead, ScopeNotificationsRead} {
 		if !g.Has(s) {
 			t.Fatalf("wildcard failed %s", s)
+		}
+	}
+}
+
+// tBilling, tRegistrar and tServerless answer a wildcard token with 403.
+// Offering their tools to one lists tools that fail on first use.
+func TestWildcardDoesNotSatisfyExplicitOnlyScopes(t *testing.T) {
+	g := Grants{Discovered: true, Scopes: map[string]bool{ScopeWildcard: true}}
+	for _, s := range []string{ScopeBillingRead, ScopeRegistrarRead, ScopeCloudRead} {
+		if g.Has(s) {
+			t.Fatalf("wildcard satisfied %s, which refuses it", s)
+		}
+		if !ExplicitOnly(s) {
+			t.Fatalf("%s not marked explicit-only", s)
+		}
+	}
+}
+
+func TestExplicitGrantSatisfiesExplicitOnlyScopes(t *testing.T) {
+	g := Grants{Discovered: true, Scopes: map[string]bool{ScopeMCPConnect: true, ScopeBillingRead: true}}
+	if !g.Has(ScopeBillingRead) {
+		t.Fatal("explicit billing:read not honoured")
+	}
+}
+
+func TestUndiscoveredGrantsOfferEverything(t *testing.T) {
+	g := Grants{Discovered: false}
+	if !g.Has(ScopeBillingRead) || !g.Has(ScopeTunnelsRead) {
+		t.Fatal("an undiscovered token must offer every tool")
+	}
+}
+
+func TestIsWildcard(t *testing.T) {
+	cases := []struct {
+		name   string
+		g      Grants
+		expect bool
+	}{
+		{"legacy all-access", Grants{Discovered: true, Scopes: map[string]bool{ScopeWildcard: true}}, true},
+		{"consent screen", Grants{Discovered: true, Scopes: map[string]bool{ScopeMCPConnect: true, ScopeUsageRead: true}}, false},
+		{"not discovered", Grants{Discovered: false}, false},
+	}
+	for _, c := range cases {
+		if got := c.g.IsWildcard(); got != c.expect {
+			t.Fatalf("%s: IsWildcard=%v want %v", c.name, got, c.expect)
+		}
+	}
+}
+
+func TestResolveVersion(t *testing.T) {
+	cases := []struct{ linked, module, want string }{
+		{"0.0.2", "v0.0.1", "0.0.2"},
+		{"v0.0.2", "", "0.0.2"},
+		{"", "v0.0.1", "0.0.1"},
+		{"", "(devel)", "0.0.0-dev"},
+		{"", "", "0.0.0-dev"},
+	}
+	for _, c := range cases {
+		if got := resolveVersion(c.linked, c.module); got != c.want {
+			t.Fatalf("resolveVersion(%q,%q)=%q want %q", c.linked, c.module, got, c.want)
 		}
 	}
 }

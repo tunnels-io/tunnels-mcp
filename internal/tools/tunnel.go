@@ -35,9 +35,11 @@ func StartTunnel(r *cli.Runner) mcp.Registration {
 						"description": "Optional. Ask for a specific subdomain instead of a generated one.",
 					},
 					"protocol": map[string]any{
-						"type":        "string",
-						"enum":        []string{"http", "tcp", "tls"},
-						"description": "Optional. Defaults to http.",
+						"type": "string",
+						// The CLI takes only these two. It has no tls mode: "tls 3000"
+						// fails with "invalid address 'tls': missing port".
+						"enum":        []string{"http", "tcp"},
+						"description": "Optional. http serves HTTPS on the public URL; tcp forwards raw TCP. Defaults to http.",
 					},
 				},
 				"required": []string{"port"},

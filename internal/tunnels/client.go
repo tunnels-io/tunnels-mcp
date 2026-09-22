@@ -7,11 +7,39 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 )
 
-const Version = "0.1.0"
+// version is set at release time:
+//
+//	-ldflags "-X github.com/tunnels-io/tunnels-mcp/internal/tunnels.version=0.0.2"
+var version string
+
+// Version comes from the release, never from a hand-edited constant. It used
+// to be "0.1.0" while the published tag was v0.0.1.
+var Version = resolveVersion(version, buildVersion())
+
+func buildVersion() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	return bi.Main.Version
+}
+
+// resolveVersion prefers the linker value, then the module version that
+// `go install ...@v0.0.1` records, then a dev marker.
+func resolveVersion(linked, module string) string {
+	if v := strings.TrimSpace(linked); v != "" {
+		return strings.TrimPrefix(v, "v")
+	}
+	if module != "" && module != "(devel)" {
+		return strings.TrimPrefix(module, "v")
+	}
+	return "0.0.0-dev"
+}
 
 const TokenPrefix = "tnl_"
 
