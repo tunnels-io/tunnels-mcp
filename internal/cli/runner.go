@@ -49,6 +49,74 @@ func NewRunner(bin, token string) *Runner {
 
 var ErrNoCLI = errors.New("the tunnels CLI was not found")
 
+// InspectEnv turns the CLI's request inspector back on. The value goes
+// straight to --inspect-addr, so "127.0.0.1:0" or a fixed address both work.
+const InspectEnv = "TUNNELS_INSPECT"
+
+// buildArgs builds the CLI argument list.
+//
+// The inspector is off by default. It has no auth, and a tunnel opened by an
+// assistant is unattended, so leaving it on would expose the tunnel's headers
+// to anything on the machine. Set InspectEnv to get it back.
+//
+// Flags go before the port. The CLI treats everything after it as pass-through.
+func buildArgs(port int, subdomain, protocol string) []string {
+	args := []string{"--events", "ndjson"}
+
+	inspect := strings.TrimSpace(os.Getenv(InspectEnv))
+	if inspect == "" {
+		inspect = "disabled"
+	}
+	args = append(args, "--inspect-addr", inspect)
+
+	if subdomain != "" {
+		args = append(args, "--subdomain", subdomain)
+	}
+	return append(args, protocol, fmt.Sprint(port))
+}
+
+// forwarded is what the CLI reads, minus the token. Keep it an allowlist: an
+// MCP server inherits the AI client's environment and should not hand all of it
+// to a child.
+//
+// http_proxy is lowercase on purpose. The CLI reads no other spelling, so
+// HTTPS_PROXY and HTTP_PROXY would be dead weight.
+var forwarded = []string{
+	"PATH",
+	"HOME",
+	"http_proxy",
+	"TUNELS_API_BASE_URL",
+	"TUNELS_NO_TELEMETRY",
+	"NO_COLOR",
+	"TZ",
+	"HOSTNAME",
+}
+
+// noUpdateCheck stops the CLI's daily release check. It costs a 2s fetch and a
+// stderr banner in a subprocess that cannot act on the result.
+const noUpdateCheck = "TUNELS_NO_UPDATE_CHECK"
+
+// buildEnv builds the child environment. It REPLACES the parent, so anything
+// missing here does not reach the CLI.
+func buildEnv(token string) []string {
+	env := make([]string, 0, len(forwarded)+2)
+	for _, k := range forwarded {
+		if v, ok := os.LookupEnv(k); ok {
+			env = append(env, k+"="+v)
+		}
+	}
+
+	// An explicit parent setting wins, so the check can be re-enabled.
+	if v, ok := os.LookupEnv(noUpdateCheck); ok {
+		env = append(env, noUpdateCheck+"="+v)
+	} else {
+		env = append(env, noUpdateCheck+"=1")
+	}
+
+	// Last and unconditional: a stray parent value must not win.
+	return append(env, "TUNELS_AUTHTOKEN="+token)
+}
+
 func (r *Runner) Available() error {
 	if _, err := exec.LookPath(r.Bin); err != nil {
 		return fmt.Errorf("%w: %q is not on PATH. Install it from tunnels.io, or set TUNNELS_CLI to its path", ErrNoCLI, r.Bin)
@@ -57,31 +125,16 @@ func (r *Runner) Available() error {
 }
 
 func (r *Runner) Start(ctx context.Context, port int, subdomain, protocol string) (*Tunnel, error) {
+	protocol, err := validate(port, protocol)
+	if err != nil {
+		return nil, err
+	}
 	if err := r.Available(); err != nil {
 		return nil, err
 	}
-	if port < 1 || port > 65535 {
-		return nil, fmt.Errorf("port %d is not a valid TCP port", port)
-	}
-	if protocol == "" {
-		protocol = "http"
-	}
-	if protocol != "http" && protocol != "tcp" && protocol != "tls" {
-		return nil, fmt.Errorf("protocol %q is not supported; use http, tcp or tls", protocol)
-	}
 
-	args := []string{"--events", "ndjson"}
-	if subdomain != "" {
-		args = append(args, "--subdomain", subdomain)
-	}
-	args = append(args, protocol, fmt.Sprint(port))
-
-	cmd := exec.Command(r.Bin, args...)
-	cmd.Env = []string{
-		"PATH=" + os.Getenv("PATH"),
-		"HOME=" + os.Getenv("HOME"),
-		"TUNELS_AUTHTOKEN=" + r.Token,
-	}
+	cmd := exec.Command(r.Bin, buildArgs(port, subdomain, protocol)...)
+	cmd.Env = buildEnv(r.Token)
 	cmd.Stdin = nil
 
 	stdout, err := cmd.StdoutPipe()
@@ -136,6 +189,12 @@ func (r *Runner) Start(ctx context.Context, port int, subdomain, protocol string
 				done <- result{err: cliProblem(lastProblem)}
 				return
 			}
+		}
+		// Scan() stops on a clean EOF and on an error. Only the first means the
+		// CLI exited; the second means this reader died while it was still up.
+		if err := sc.Err(); err != nil {
+			done <- result{err: streamProblem(lastProblem, err)}
+			return
 		}
 		done <- result{err: cliProblem(lastProblem)}
 	}()
@@ -197,9 +256,33 @@ func (r *Runner) StopAll() {
 	}
 }
 
+// validate checks the arguments before anything is spawned, so a bad request
+// is reported as itself rather than as a missing CLI.
+func validate(port int, protocol string) (string, error) {
+	if port < 1 || port > 65535 {
+		return "", fmt.Errorf("port %d is not a valid TCP port", port)
+	}
+	if protocol == "" {
+		protocol = "http"
+	}
+	if protocol != "http" && protocol != "tcp" {
+		return "", fmt.Errorf("protocol %q is not supported; use http or tcp", protocol)
+	}
+	return protocol, nil
+}
+
 func cliProblem(detail string) error {
 	if strings.TrimSpace(detail) == "" {
 		return errors.New("the tunnels CLI exited before the tunnel opened")
 	}
 	return fmt.Errorf("the tunnel could not be opened: %s", detail)
+}
+
+// streamProblem says the reader died, not the CLI. Keeps whatever the CLI
+// managed to say first.
+func streamProblem(detail string, err error) error {
+	if strings.TrimSpace(detail) == "" {
+		return fmt.Errorf("lost the tunnels CLI event stream before the tunnel opened: %w", err)
+	}
+	return fmt.Errorf("lost the tunnels CLI event stream after %q: %w", detail, err)
 }
