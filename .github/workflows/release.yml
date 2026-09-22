@@ -1,0 +1,53 @@
+name: release
+
+# Push a tag like v0.0.2. This builds the binaries and the MCPB bundle, makes a
+# GitHub release, then lists the server in the MCP Registry.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    # macOS: the bundle's macOS binary is a universal build made with lipo.
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: make check
+      - run: scripts/release.sh "$GITHUB_REF_NAME"
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/*.tar.gz dist/*.zip dist/*.mcpb dist/SHA256SUMS \
+            --title "$GITHUB_REF_NAME" --generate-notes
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-json
+          path: dist/server.json
+
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    # A registry login for io.github.tunnels-io can publish or overwrite any
+    # server under that namespace. Add a required reviewer to this environment
+    # in the repository settings to make every publish wait for approval.
+    environment: mcp-registry-publish
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: server-json
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar xz mcp-publisher
+      - run: ./mcp-publisher login github-oidc
+      - run: ./mcp-publisher publish server.json

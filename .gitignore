@@ -2,3 +2,4 @@
 /tunnels-mcp
 *.test
 .DS_Store
+/dist/

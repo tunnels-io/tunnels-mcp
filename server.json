@@ -1,0 +1,40 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.tunnels-io/tunnels-mcp",
+  "title": "tunnels.io",
+  "description": "Read a tunnels.io account and put local ports online. Lists only the tools the token was granted.",
+  "version": "0.0.2",
+  "websiteUrl": "https://tunnels.io",
+  "repository": {
+    "url": "https://github.com/tunnels-io/tunnels-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/tunnels-io/tunnels-mcp/releases/download/v0.0.2/tunnels-mcp-0.0.2.mcpb",
+      "version": "0.0.2",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "TUNNELS_TOKEN",
+          "description": "A tunnels.io token, starting tnl_. Create one at tunnels.io/account/tokens under \"Connect an AI assistant\".",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "TUNNELS_API",
+          "description": "API base URL.",
+          "default": "https://tunnels.io"
+        },
+        {
+          "name": "TUNNELS_CLI",
+          "description": "Path to the tunnels CLI. start_tunnel and stop_tunnel need it.",
+          "default": "tunnels"
+        }
+      ]
+    }
+  ]
+}
