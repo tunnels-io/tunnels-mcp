@@ -3,7 +3,7 @@
 MCP server for [tunnels.io](https://tunnels.io).
 
 It runs locally, holds one CLI token, and gives an assistant read access to the
-account. It can also open a tunnel.
+account. It can also open a tunnel and redeploy a cloud app.
 
 ## Install
 
@@ -71,11 +71,19 @@ The environment wins.
 | `list_domains` | `registrar:read` |
 | `list_notifications` | `notifications:read` |
 | `list_cloud_apps` | `cloud:read` |
+| `list_cloud_deployments` | `cloud:read` |
+| `redeploy_cloud_app` | `cloud:deploy` |
 | `start_tunnel` | none |
 | `stop_tunnel` | none |
 
-Reads only, apart from the last two. Those shell out to the `tunnels` CLI, which
-must be on PATH. No tool changes a plan, buys a domain or deploys anything.
+Reads only, apart from `redeploy_cloud_app` and the tunnel tools.
+
+`redeploy_cloud_app` needs `cloud:deploy`, the "Redeploy cloud apps" box on the
+token page. It redeploys an app you already have. It cannot create, resize or
+delete one. It takes the app id, or the name if the token also has `cloud:read`.
+
+`start_tunnel` and `stop_tunnel` shell out to the `tunnels` CLI, which must be
+on PATH. No tool changes a plan or buys a domain.
 
 `start_tunnel` takes `http` (the default, served as HTTPS on the public URL) or
 `tcp`.

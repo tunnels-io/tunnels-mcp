@@ -59,13 +59,23 @@ func run() error {
 	}
 
 	srv := mcp.New(serverName, tunnels.Version)
-	srv.Instructions = "Read a tunnels.io account and put local ports online. " +
+	srv.Instructions = "Read a tunnels.io account, put local ports online and redeploy cloud apps. " +
 		"Only the tools this token was granted are listed."
 
 	var offered, withheld []string
 	for _, t := range tools.ReadTools {
 		if grants.Has(t.Scope) {
 			srv.Register(t.Registration(client))
+			offered = append(offered, t.Name)
+		} else {
+			withheld = append(withheld, t.Name+" ("+t.Scope+")")
+		}
+	}
+
+	canList := grants.Has(tunnels.ScopeCloudRead)
+	for _, t := range tools.CloudTools {
+		if grants.Has(t.Scope) {
+			srv.Register(t.Registration(client, canList))
 			offered = append(offered, t.Name)
 		} else {
 			withheld = append(withheld, t.Name+" ("+t.Scope+")")
@@ -106,6 +116,12 @@ func scopeList() string {
 	seen := map[string]bool{}
 	var out []string
 	for _, t := range tools.ReadTools {
+		if !seen[t.Scope] {
+			seen[t.Scope] = true
+			out = append(out, t.Scope)
+		}
+	}
+	for _, t := range tools.CloudTools {
 		if !seen[t.Scope] {
 			seen[t.Scope] = true
 			out = append(out, t.Scope)

@@ -54,9 +54,20 @@ type ServerInfo struct {
 }
 
 type Tool struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	InputSchema any    `json:"inputSchema"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	InputSchema any              `json:"inputSchema"`
+	Annotations *ToolAnnotations `json:"annotations,omitempty"`
+}
+
+// ToolAnnotations are hints for the client. Nil on the read tools, so their
+// tools/list entry is as before.
+type ToolAnnotations struct {
+	Title           string `json:"title,omitempty"`
+	ReadOnlyHint    bool   `json:"readOnlyHint"`
+	DestructiveHint bool   `json:"destructiveHint"`
+	IdempotentHint  bool   `json:"idempotentHint"`
+	OpenWorldHint   bool   `json:"openWorldHint"`
 }
 
 type ListToolsResult struct {

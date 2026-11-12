@@ -79,7 +79,17 @@ func (c *Client) redact(b []byte) []byte {
 }
 
 func (c *Client) Get(ctx context.Context, path string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.Base+path, nil)
+	return c.do(ctx, http.MethodGet, path, out)
+}
+
+// Post sends a POST with no body. It is never retried: a repeated write can
+// do the action twice.
+func (c *Client) Post(ctx context.Context, path string, out any) error {
+	return c.do(ctx, http.MethodPost, path, out)
+}
+
+func (c *Client) do(ctx context.Context, method, path string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, method, c.Base+path, nil)
 	if err != nil {
 		return &Error{Message: "could not build the request: " + err.Error()}
 	}

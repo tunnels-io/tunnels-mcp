@@ -15,6 +15,8 @@ const (
 	ScopeNotificationsRead = "notifications:read"
 	ScopeRegistrarRead     = "registrar:read"
 	ScopeCloudRead         = "cloud:read"
+	// ScopeCloudDeploy redeploys an existing cloud app. Nothing else.
+	ScopeCloudDeploy = "cloud:deploy"
 
 	// ScopeMCPConnect carries no authority. The consent screen adds it to
 	// every token it mints.
@@ -30,6 +32,7 @@ var explicitOnly = map[string]bool{
 	ScopeBillingRead:   true,
 	ScopeRegistrarRead: true,
 	ScopeCloudRead:     true,
+	ScopeCloudDeploy:   true,
 }
 
 func ExplicitOnly(scope string) bool { return explicitOnly[scope] }
